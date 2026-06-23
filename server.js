@@ -134,13 +134,17 @@ if (data.type === 'audio') {
 }
 
             // 4. ESTADO DE FALA
-            if (data.type === 'talking_state') {
-                if (ws.room && ws.userData) {
-                    ws.userData.isTalking = data.isTalking;
-                    broadcastPresence(ws.room);
-                }
-                return;
-            }
+if (data.type === 'talking_state') {
+    if (ws.room && ws.userData) {
+        ws.userData.isTalking = data.isTalking;
+        
+        // ADICIONE ESTA LINHA ABAIXO:
+        broadcastToRoom(ws.room, JSON.stringify({ type: 'user_talking', name: ws.userData.name, isTalking: data.isTalking }), ws);
+        
+        broadcastPresence(ws.room);
+    }
+    return;
+}
 
 // 5. LOCALIZAÇÃO
 if (data.type === 'location' || data.type === 'location_update') {
