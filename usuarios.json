@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Adriano",
+    "type": "paid",
+    "startDate": "2026-06-22",
+    "endDate": "2026-07-22",
+    "status": "active",
+    "lastRenewal": "2026-06-22"
+  },
+  {
+    "name": "Fabio",
+    "type": "paid",
+    "startDate": "2026-06-22",
+    "endDate": "2026-07-22",
+    "status": "active",
+    "lastRenewal": "2026-06-22"
+  },
+  {
+    "name": "Joao",
+    "type": "paid",
+    "startDate": "2026-06-20",
+    "endDate": "2026-07-20",
+    "status": "active",
+    "lastRenewal": "2026-06-20"
+  }
+]
