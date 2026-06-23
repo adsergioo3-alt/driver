@@ -84,7 +84,24 @@ wss.on('connection', (ws) => {
                 };
 
                 if (!rooms.has(room)) rooms.set(room, new Map());
-                rooms.get(room).set(ws, ws.userData);
+                const roomMap = rooms.get(room);
+
+                // Evita duplicação de usuário quando reconecta com mesmo nome/peerId
+                for (const [client, udata] of roomMap.entries()) {
+                    if (!udata) continue;
+                    if ((peerId && udata.peerId === peerId) || udata.name === name) {
+                        try {
+                            client.send(JSON.stringify({ type: 'duplicate_login', reason: 'replaced_by_new_connection' }));
+                        } catch (e) {}
+                        try {
+                            client.close(4000, 'replaced_by_new_connection');
+                        } catch (e) {}
+                        roomMap.delete(client);
+                        break;
+                    }
+                }
+
+                roomMap.set(ws, ws.userData);
 
                 ws.send(JSON.stringify({ type: 'welcome', plan: usuario.type }));
                 broadcastPresence(room);
