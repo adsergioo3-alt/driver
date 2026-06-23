@@ -112,11 +112,26 @@ wss.on('connection', (ws) => {
                 return;
             }
 
-            // 3. REPASSE DE ÁUDIO (PTT)
-            if (data.type === 'audio') {
-                if (ws.room) broadcastToRoom(ws.room, msgText, ws);
-                return;
+if (data.type === 'audio') {
+    if (data.to) {
+        // CONVERSA PRIVADA: Envia apenas para o destinatário específico
+        const roomMap = rooms.get(ws.room);
+        if (roomMap) {
+            for (const [client, udata] of roomMap.entries()) {
+                if (udata && udata.peerId === data.to) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(msgText); 
+                    }
+                    break;
+                }
             }
+        }
+    } else {
+        // BROADCAST: Envia para todos na sala (comportamento atual)
+        if (ws.room) broadcastToRoom(ws.room, msgText, ws);
+    }
+    return;
+}
 
             // 4. ESTADO DE FALA
             if (data.type === 'talking_state') {
