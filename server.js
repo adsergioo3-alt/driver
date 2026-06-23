@@ -207,5 +207,88 @@ function broadcastToRoom(roomName, msgText, senderWs) {
 
 // [Mantenha o restante das suas rotas de usuários, admin e mapa aqui...]
 
+// Servir painel admin e arquivos estáticos básicos
+app.get('/', (req, res) => {
+    res.redirect('/admin');
+});
+
+app.get('/admin', (req, res) => {
+    const adminPath = path.join(__dirname, 'admin.html');
+    if (!fs.existsSync(adminPath)) return res.status(404).send('admin.html não encontrado');
+    res.sendFile(adminPath);
+});
+
+// Servir imagens de emergência diretamente (para download/preview)
+app.use('/emergency/images', express.static(EMERGENCY_DIR));
+
+// --- ROTAS DE GERENCIAMENTO DE USUÁRIOS ---
+function calcularStatusPlano(usuario) {
+    if (!usuario) return { status: 'unknown', dias_restantes: null, mensagem: '' };
+    if (usuario.type === 'free') return { status: 'active', dias_restantes: null, mensagem: 'Plano Free (ilimitado)' };
+    try {
+        const hoje = new Date();
+        const dataFim = usuario.endDate ? new Date(usuario.endDate) : null;
+        if (!dataFim) return { status: 'active', dias_restantes: null, mensagem: 'Sem data de fim' };
+        if (dataFim < hoje) return { status: 'expired', dias_restantes: 0, mensagem: 'Plano expirado' };
+        const dias = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
+        return { status: 'active', dias_restantes: dias, mensagem: dias === 1 ? '1 dia restante' : `${dias} dias restantes` };
+    } catch (e) {
+        return { status: 'unknown', dias_restantes: null, mensagem: '' };
+    }
+}
+
+function renovarPlano(usuario, dias = 30) {
+    const hoje = new Date();
+    usuario.startDate = hoje.toISOString().split('T')[0];
+    usuario.endDate = new Date(hoje.getTime() + dias * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    usuario.lastRenewal = usuario.startDate;
+    usuario.status = 'active';
+    return usuario;
+}
+
+app.get('/usuarios', (req, res) => {
+    // atualiza leitura do arquivo antes de responder
+    loadUsuarios();
+    const usuariosComStatus = usuarios.map(u => ({ ...u, planStatus: calcularStatusPlano(u) }));
+    res.json(usuariosComStatus);
+});
+
+app.post('/usuarios', (req, res) => {
+    try {
+        const novos = req.body;
+        if (!Array.isArray(novos)) return res.status(400).json({ error: 'Array esperado' });
+        usuarios = novos;
+        fs.writeFileSync(USUARIOS_FILE, JSON.stringify(usuarios, null, 2));
+        res.json({ success: true, usuarios });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/usuarios/:index/renovar', (req, res) => {
+    try {
+        const index = Number(req.params.index);
+        const dias = req.body && Number(req.body.dias) || 30;
+        if (!Number.isInteger(index) || index < 0 || index >= usuarios.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+        renovarPlano(usuarios[index], dias);
+        fs.writeFileSync(USUARIOS_FILE, JSON.stringify(usuarios, null, 2));
+        res.json({ success: true, usuario: usuarios[index] });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/usuarios/:index/alterar-tipo', (req, res) => {
+    try {
+        const index = Number(req.params.index);
+        const novoTipo = req.body && req.body.novoTipo;
+        if (!['free', 'paid'].includes(novoTipo)) return res.status(400).json({ error: 'novoTipo inválido' });
+        if (!Number.isInteger(index) || index < 0 || index >= usuarios.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+        const usuario = usuarios[index];
+        usuario.type = novoTipo;
+        if (novoTipo === 'paid') renovarPlano(usuario, 30); else { usuario.startDate = null; usuario.endDate = null; usuario.lastRenewal = null; }
+        fs.writeFileSync(USUARIOS_FILE, JSON.stringify(usuarios, null, 2));
+        res.json({ success: true, usuario });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`Servidor PTT rodando na porta ${PORT}`));
